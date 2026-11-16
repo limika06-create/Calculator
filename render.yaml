@@ -1,24 +1,20 @@
-# Render Blueprint: New → Blueprint → выберите этот репозиторий.
-# Правки поваров хранятся на диске /var/data (нужен тариф Starter, диск 1 ГБ).
-# Бесплатный вариант без диска — см. README, раздел «Бесплатно».
+# Render Blueprint (бесплатный тариф): New → Blueprint → этот репозиторий.
+# Правки поваров хранятся в бесплатной базе PostgreSQL (Neon) — при создании
+# Render попросит вставить строку подключения DATABASE_URL.
 services:
   - type: web
     name: mezzome-techcards
     runtime: node
-    plan: starter
+    plan: free
     buildCommand: npm install
     startCommand: node server.js
     healthCheckPath: /healthz
     envVars:
+      - key: DATABASE_URL
+        sync: false
       - key: APP_LOGIN
         value: "0000"
       - key: APP_PASSWORD
         value: "0000"
       - key: SESSION_SECRET
         generateValue: true
-      - key: DATA_DIR
-        value: /var/data
-    disk:
-      name: mezzome-data
-      mountPath: /var/data
-      sizeGB: 1

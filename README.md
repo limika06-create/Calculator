@@ -22,18 +22,15 @@ node server.js        # Node 18+, зависимости не нужны
 1. github.com → **New repository** → имя, например `mezzome-techcards` → **Private** → Create.
 2. **Add file → Upload files** → перетащите все файлы и папки из архива (server.js, package.json, render.yaml, README.md, папки `public` и `data`) → **Commit changes**.
 
-## Запуск на Render (с диском, рекомендуется)
-1. render.com → войдите через GitHub → **New → Blueprint** → выберите репозиторий → **Apply**.
-2. Render создаст сервис по `render.yaml`: тариф Starter и диск 1 ГБ для правок.
-3. Через 2–3 минуты откройте адрес вида `https://mezzome-techcards.onrender.com` и отправьте его поварам.
+## Запуск на Render бесплатно
+Правки поваров хранятся в бесплатной базе PostgreSQL на neon.tech (карта не нужна). Без базы на бесплатном Render правки стираются при каждом перезапуске.
 
-## Бесплатно (без диска)
-На бесплатном тарифе Render диск не подключается, а файлы стираются при каждом перезапуске — правки поваров пропадут.
-Чтобы этого не было, подключите бесплатную базу PostgreSQL (например, neon.tech или supabase.com):
-1. Создайте базу и скопируйте строку подключения (`postgres://…`).
-2. На Render: **New → Web Service** → репозиторий → Runtime **Node**, Build `npm install`, Start `node server.js`, Instance **Free**.
-3. В **Environment** добавьте: `DATABASE_URL` = строка подключения, `APP_LOGIN` = `0000`, `APP_PASSWORD` = `0000`, `SESSION_SECRET` = любая длинная строка.
-Таблица создаётся сама. Бесплатный сервис Render «засыпает» без посещений: первое открытие занимает до минуты.
+1. **База.** neon.tech → Sign up (через GitHub или Google) → Create project (регион Europe) → на странице проекта нажмите **Connect** → скопируйте строку вида `postgresql://…neon.tech/neondb?sslmode=require`.
+2. **Сайт.** render.com → New → **Blueprint** → выберите репозиторий → Render спросит `DATABASE_URL` — вставьте строку из Neon → **Apply**. Тариф в `render.yaml` уже бесплатный.
+3. Через 2–3 минуты откройте адрес вида `https://mezzome-techcards.onrender.com`.
+
+Если Render всё равно просит карту: это его проверка от злоупотреблений, на бесплатном тарифе деньги не списываются. Можно добавить карту для проверки или использовать другой хостинг.
+Бесплатный сервис Render «засыпает» без посещений: первое открытие занимает до минуты.
 
 ## Безопасность
 Пароль `0000` угадать легко. Если по ссылке будут заходить посторонние, поменяйте `APP_PASSWORD` на более сложный.
