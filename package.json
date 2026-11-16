@@ -1,0 +1,10 @@
+{
+  "name": "mezzome-techcards",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Тех. карты Mezzome и калькулятор закладки",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" },
+  "optionalDependencies": { "pg": "^8.11.3" }
+}

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Вход · Тех. карты Mezzome</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/app.css">
+</head>
+<body class="loginPage">
+<main class="loginBox">
+  <div class="brand"><span class="mark">MZ</span><div><div class="brandName">Тех. карты Mezzome</div><div class="muted">нормы закладки и калькулятор для кухни</div></div></div>
+  <form id="f" autocomplete="on">
+    <label class="fld">Ваше имя<input id="name" name="name" autocomplete="name" placeholder="например, Айгерим — повар" required></label>
+    <label class="fld">Логин<input id="login" name="username" autocomplete="username" inputmode="numeric" required></label>
+    <label class="fld">Пароль<input id="password" name="password" type="password" autocomplete="current-password" inputmode="numeric" required></label>
+    <button class="btn primary wide" type="submit">Войти</button>
+    <p class="err" id="err" role="alert"></p>
+    <p class="muted small">Имя видно в истории правок: так шеф понимает, кто что поменял.</p>
+  </form>
+</main>
+<script>
+const f = document.getElementById('f'), err = document.getElementById('err');
+try { document.getElementById('name').value = localStorage.getItem('mz-name') || ''; } catch (e) {}
+f.addEventListener('submit', async e => {
+  e.preventDefault(); err.textContent = '';
+  const body = { name: f.name.value.trim(), login: f.username.value.trim(), password: f.password.value };
+  try {
+    const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const j = await r.json();
+    if (!r.ok) { err.textContent = j.error || 'Не удалось войти'; return; }
+    try { localStorage.setItem('mz-name', body.name); } catch (e) {}
+    location.href = '/';
+  } catch (e) { err.textContent = 'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.'; }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+# Render Blueprint: New → Blueprint → выберите этот репозиторий.
+# Правки поваров хранятся на диске /var/data (нужен тариф Starter, диск 1 ГБ).
+# Бесплатный вариант без диска — см. README, раздел «Бесплатно».
+services:
+  - type: web
+    name: mezzome-techcards
+    runtime: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: APP_LOGIN
+        value: "0000"
+      - key: APP_PASSWORD
+        value: "0000"
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: DATA_DIR
+        value: /var/data
+    disk:
+      name: mezzome-data
+      mountPath: /var/data
+      sizeGB: 1

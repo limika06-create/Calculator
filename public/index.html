@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Тех. карты Mezzome</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="mark">MZ</span><div class="brandName">Тех. карты Mezzome</div></div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" id="tabCards" aria-selected="true">Тех. карты</button>
+    <button role="tab" id="tabCalc" aria-selected="false">Калькулятор закладки</button>
+  </nav>
+  <div class="topRight">
+    <div class="sync" title="Состояние связи с сервером"><span class="dot" id="syncDot"></span><span id="syncText">Загрузка…</span></div>
+    <div class="menuWrap">
+      <button class="btn sm" id="menuBtn" aria-haspopup="true" aria-expanded="false"><span id="meName">…</span> ▾</button>
+      <div class="menu" id="menu" hidden>
+        <div class="who" id="meWho"></div>
+        <a href="/api/export.csv" download>Скачать все карты для Excel (CSV)</a>
+        <button id="logout">Выйти</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="cardsView" id="viewCards">
+    <aside class="rail">
+      <div class="railHead">
+        <div class="search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="q" type="search" placeholder="Блюдо или код карты" aria-label="Поиск блюда">
+        </div>
+        <select id="cat" aria-label="Категория"><option value="">Все категории</option></select>
+        <div class="seg" id="seg">
+          <button data-f="all" aria-pressed="true"><b id="nAll">0</b>все</button>
+          <button data-f="bad" aria-pressed="false"><b id="nBad">0</b>не сходятся</button>
+          <button data-f="check" aria-pressed="false"><b id="nCheck">0</b>проверить</button>
+          <button data-f="edited" aria-pressed="false"><b id="nEdited">0</b>изменены</button>
+        </div>
+      </div>
+      <div class="list" id="list"></div>
+    </aside>
+    <div class="panel" id="editor"><div class="empty">Загрузка тех. карт…</div></div>
+  </section>
+
+  <section class="calc calcView" id="viewCalc" hidden>
+    <div class="panel">
+      <h3 class="stepH"><span class="k">1</span>Блюдо</h3>
+      <div class="cb" id="cDishBox"><input id="cDish" placeholder="Начните печатать название" autocomplete="off" aria-label="Блюдо для калькулятора"></div>
+      <div class="muted small" id="cDishInfo" style="margin-top:6px"></div>
+
+      <h3 class="stepH" style="margin-top:20px"><span class="k">2</span>Сколько приготовили</h3>
+      <div class="grid2">
+        <label class="fld">Мармиток (гастроёмкостей)<input id="cN" inputmode="decimal" value="24"></label>
+        <label class="fld">Порций в одной<input id="cK" inputmode="decimal" value="40"></label>
+      </div>
+      <label class="fld" style="margin-top:10px">Вес готового блюда в одной мармитке, кг<input id="cW" inputmode="decimal" placeholder="необязательно, например 10"></label>
+      <div class="tiles">
+        <div class="tile"><div class="l">Всего порций</div><div class="v" id="cTot">0</div></div>
+        <div class="tile"><div class="l">Выход 1 порции</div><div class="v" id="cPort">—</div></div>
+      </div>
+      <div class="toolbar">
+        <button class="btn sm" id="cFromCard">Посчитать закладку по карте</button>
+        <button class="btn sm primary" id="cToCard">Записать нормы в карту</button>
+      </div>
+      <p class="muted small">«Посчитать закладку» — сколько каждого продукта взять на все порции. «Записать нормы» — разделит продукты из шага 3 на число порций и перенесёт в карту блюда (потом нажмите «Сохранить»).</p>
+    </div>
+    <div class="panel">
+      <h3 class="stepH"><span class="k">3</span>Продукты на всю закладку</h3>
+      <div class="calcRow h"><span>Продукт</span><span>Всего</span><span>Ед.</span><span>Потери, %</span><span style="text-align:right">1 порция брутто</span><span style="text-align:right">1 порция нетто</span><span></span></div>
+      <div id="cRows"></div>
+      <div class="toolbar">
+        <button class="btn sm" id="cAdd">+ Продукт</button>
+        <button class="btn sm ghost" id="cClear">Очистить</button>
+        <button class="btn sm ghost" id="cCopy">Копировать результат</button>
+      </div>
+      <div class="sumBox" id="cSum"></div>
+    </div>
+  </section>
+</main>
+
+<div class="printCard" id="printCard"></div>
+<script src="/assets/app.js"></script>
+</body>
+</html>
