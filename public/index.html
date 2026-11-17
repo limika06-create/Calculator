@@ -12,8 +12,8 @@
 <header class="top">
   <div class="brand"><span class="mark">MZ</span><div class="brandName">Тех. карты Mezzome</div></div>
   <nav class="tabs" role="tablist">
-    <button role="tab" id="tabCards" aria-selected="true">Тех. карты</button>
-    <button role="tab" id="tabCalc" aria-selected="false">Калькулятор закладки</button>
+    <button role="tab" id="tabCards" aria-selected="true"><span class="full">Тех. карты</span><span class="short">Карты</span></button>
+    <button role="tab" id="tabCalc" aria-selected="false"><span class="full">Калькулятор закладки</span><span class="short">Калькулятор</span></button>
   </nav>
   <div class="topRight">
     <div class="sync" title="Состояние связи с сервером"><span class="dot" id="syncDot"></span><span id="syncText">Загрузка…</span></div>
@@ -42,7 +42,9 @@
           <button data-f="bad" aria-pressed="false"><b id="nBad">0</b>не сходятся</button>
           <button data-f="check" aria-pressed="false"><b id="nCheck">0</b>проверить</button>
           <button data-f="edited" aria-pressed="false"><b id="nEdited">0</b>изменены</button>
+          <button data-f="done" aria-pressed="false"><b id="nDone">0</b>готово</button>
         </div>
+        <label class="hideDone"><input type="checkbox" id="hideDone"> Скрыть готовые</label>
       </div>
       <div class="list" id="list"></div>
     </aside>

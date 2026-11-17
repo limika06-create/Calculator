@@ -10,7 +10,9 @@ const clone = x => JSON.parse(JSON.stringify(x));
 const shortName = p => String(p || '').split(' · ')[0];
 
 let BASE = null, PROD = {}, PRODLIST = [], BYCODE = {}, DISHES = [];
-let edits = {}, drafts = {}, openNotes = new Set();
+let edits = {}, drafts = {}, done = {}, openNotes = new Set();
+const isPhone = () => matchMedia('(max-width:720px)').matches;
+function setMode(m) { document.body.classList.toggle('m-card', m === 'card'); document.body.classList.toggle('m-list', m === 'list'); }
 let current = null, filter = 'all', ME = { name: '' }, online = true;
 
 // ---------- utils ----------
@@ -75,15 +77,16 @@ function attachCombo(input, { list, key, label, sub, onPick }) {
   const open = () => {
     const items = searchList(list(), input.value === input.dataset.picked ? '' : input.value, key);
     ddState = { input, items, idx: 0, onPick };
-    const r = input.getBoundingClientRect();
-    dd.style.left = r.left + 'px'; dd.style.width = Math.max(r.width, 320) + 'px';
-    const below = innerHeight - r.bottom;
-    if (below < 220 && r.top > below) { dd.style.top = ''; dd.style.bottom = (innerHeight - r.top + 4) + 'px'; } else { dd.style.bottom = ''; dd.style.top = (r.bottom + 4) + 'px'; }
+    placeDD(input);
     dd.innerHTML = items.length ? items.map((it, i) => `<div class="opt" role="option" data-i="${i}" aria-selected="${i === 0}"><span>${hl(label(it), input.value)}</span><small>${esc(sub(it))}</small></div>`).join('') : '<div class="none">Ничего не найдено. Попробуйте часть слова или код (например, DAIR).</div>';
     dd.hidden = false;
   };
   const pick = i => { const it = ddState && ddState.items[i]; if (!it) return; dd.hidden = true; input.dataset.picked = label(it); onPick(it); };
-  input.addEventListener('focus', () => { input.select(); open(); });
+  input.addEventListener('focus', () => {
+    input.select();
+    if (isPhone()) { const y = input.getBoundingClientRect().top + scrollY - 70; scrollTo(0, y); setTimeout(open, 250); }
+    else open();
+  });
   input.addEventListener('input', open);
   input.addEventListener('keydown', e => {
     if (dd.hidden || !ddState || ddState.input !== input) return;
@@ -96,14 +99,24 @@ function attachCombo(input, { list, key, label, sub, onPick }) {
   input._pick = pick;
 }
 dd.addEventListener('mousedown', e => { const o = e.target.closest('.opt'); if (o && ddState) { e.preventDefault(); ddState.input._pick(+o.dataset.i); } });
-addEventListener('scroll', () => { if (!dd.hidden && ddState) { const r = ddState.input.getBoundingClientRect(); if (r.bottom < 0 || r.top > innerHeight) dd.hidden = true; else if (dd.style.top) dd.style.top = (r.bottom + 4) + 'px'; } }, true);
+addEventListener('scroll', () => { if (!dd.hidden && ddState) { const r = ddState.input.getBoundingClientRect(); if (r.bottom < 0 || r.top > innerHeight) dd.hidden = true; else placeDD(ddState.input); } }, true);
+function placeDD(input) {
+  const r = input.getBoundingClientRect(), vv = window.visualViewport;
+  const vh = vv ? vv.height + vv.offsetTop : innerHeight, vw = vv ? vv.width : innerWidth;
+  const w = isPhone() ? vw - 16 : Math.max(r.width, 320);
+  dd.style.width = w + 'px'; dd.style.left = Math.max(8, Math.min(r.left, vw - w - 8)) + 'px';
+  const below = vh - r.bottom, above = r.top;
+  if (below < 180 && above > below) { dd.style.top = ''; dd.style.bottom = (innerHeight - r.top + 4) + 'px'; dd.style.maxHeight = Math.min(300, above - 12) + 'px'; }
+  else { dd.style.bottom = ''; dd.style.top = (r.bottom + 4) + 'px'; dd.style.maxHeight = Math.max(140, Math.min(300, below - 12)) + 'px'; }
+}
+if (window.visualViewport) visualViewport.addEventListener('resize', () => { if (!dd.hidden && ddState) placeDD(ddState.input); });
 const prodCombo = (input, onPick) => attachCombo(input, { list: () => PRODLIST, key: p => p.d, label: p => p.d.split(' · ')[0], sub: p => `${p.code || 'без кода'} · ${p.u}`, onPick });
 
 // ---------- list ----------
 function renderCounts() {
-  let all = 0, bad = 0, chk = 0, ed = 0;
-  for (const c of BASE.cards) { all++; if (fitState(effective(c.code)).st === 'bad') bad++; if (needsCheck(c.code)) chk++; if (edits[c.code]) ed++; }
-  $('#nAll').textContent = all; $('#nBad').textContent = bad; $('#nCheck').textContent = chk; $('#nEdited').textContent = ed;
+  let all = 0, bad = 0, chk = 0, ed = 0, dn = 0;
+  for (const c of BASE.cards) { all++; if (fitState(effective(c.code)).st === 'bad') bad++; if (needsCheck(c.code)) chk++; if (edits[c.code]) ed++; if (done[c.code]) dn++; }
+  $('#nAll').textContent = all; $('#nBad').textContent = bad; $('#nCheck').textContent = chk; $('#nEdited').textContent = ed; $('#nDone').textContent = dn;
 }
 function renderList() {
   const q = norm($('#q').value.trim()), cat = $('#cat').value;
@@ -116,16 +129,19 @@ function renderList() {
     if (filter === 'bad' && f.st !== 'bad') continue;
     if (filter === 'check' && !needsCheck(b.code)) continue;
     if (filter === 'edited' && !edits[b.code]) continue;
+    if (filter === 'done' && !done[b.code]) continue;
+    if (filter !== 'done' && $('#hideDone').checked && done[b.code]) continue;
     if (!cat && c.cat !== lastCat) { lastCat = c.cat; const g = document.createElement('div'); g.className = 'grp'; g.textContent = c.cat || 'Без категории'; L.appendChild(g); }
     const el = document.createElement('div');
     el.className = 'item s-' + f.st; el.tabIndex = 0; el.setAttribute('role', 'button');
     if (b.code === current) el.setAttribute('aria-current', 'true');
     let pill = '';
     if (drafts[b.code]) pill = '<span class="pill acc">не сохранено</span>';
+    else if (done[b.code]) pill = '<span class="pill good">✓ готово</span>';
     else if (f.dev !== null && Math.abs(f.dev) > 0.02) pill = `<span class="pill ${f.st === 'bad' ? 'bad' : 'warn'}">${f.dev > 0 ? '+' : ''}${Math.round(f.dev * 100)}%</span>`;
     else if (edits[b.code]) pill = '<span class="pill good">изменено</span>';
     else if (needsCheck(b.code)) pill = '<span class="pill warn">проверить</span>';
-    el.innerHTML = `<span class="bar"></span><span><div class="n">${esc(c.name)}</div><div class="meta">${fmt(num(c.out), 1)} ${esc(c.ou)} · ${c.ing.length} прод.${edits[b.code] ? ' · ' + esc(edits[b.code].by) : ''}</div></span><span>${pill}</span>`;
+    el.innerHTML = `<span class="bar"></span><span><div class="n">${done[b.code] ? '<span class="doneMark">✓</span>' : ''}${esc(c.name)}</div><div class="meta">${fmt(num(c.out), 1)} ${esc(c.ou)} · ${c.ing.length} прод.${edits[b.code] ? ' · ' + esc(edits[b.code].by) : ''}</div></span><span>${pill}</span>`;
     el.onclick = () => openCard(b.code);
     el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openCard(b.code); } };
     L.appendChild(el); shown++;
@@ -139,10 +155,11 @@ function openCard(code) {
   current = code; openNotes = new Set();
   try { const s = JSON.parse(localStorage.getItem(draftKey(code)) || 'null'); if (s && !drafts[code]) { drafts[code] = s.d; toast('Восстановлены ваши несохранённые правки этой карты'); } } catch (e) {}
   renderEditor(); renderList();
-  history.replaceState(null, '', '#' + code);
-  if (innerWidth < 980) $('#editor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (isPhone()) { if (location.hash !== '#' + code) history.pushState({ card: code }, '', '#' + code); setMode('card'); scrollTo(0, 0); }
+  else { history.replaceState(null, '', '#' + code); if (innerWidth < 980) $('#editor').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 }
-function touched() { persistDraft(current); renderMeter(); renderSavebar(); renderList(); }
+let listTimer = null;
+function touched() { persistDraft(current); renderMeter(); renderSavebar(); clearTimeout(listTimer); listTimer = setTimeout(renderList, isPhone() ? 600 : 250); }
 
 function renderEditor() {
   const E = $('#editor');
@@ -150,11 +167,14 @@ function renderEditor() {
   const c = effective(current), e = edits[current];
   const cats = [...new Set(BASE.cards.map(x => x.cat).filter(Boolean))].sort();
   E.innerHTML = `<div class="ed">
+    <button class="btn sm ghost backBtn" id="back">← К списку</button>
     <div id="conflict"></div>
+    ${done[current] ? `<div class="doneBanner">✓ Карта готова <span class="muted">· отметил(а) ${esc(done[current].by)}, ${new Date(done[current].at).toLocaleString('ru-RU')}</span><button class="btn sm" id="undone">Снять отметку</button></div>` : ''}
     <div class="edHead">
       <div><h2>${esc(c.name)}</h2><div class="sub">${esc(c.code)}${c.alt ? ' · ' + esc(c.alt) : ''}</div>
         <div class="sub">${e ? `Сохранено: ${esc(e.by)}, ${new Date(e.at).toLocaleString('ru-RU')}` : 'Исходная версия (после сверки с Word-ТТК)'}</div></div>
       <div class="edActions">
+        ${done[current] ? '' : '<button class="btn sm done" id="markDone">✓ Отметить готовой</button>'}
         <button class="btn sm" id="toCalc">Калькулятор</button>
         <button class="btn sm" id="print">Печать</button>
         <button class="btn sm" id="copy">Копировать</button>
@@ -182,11 +202,28 @@ function renderEditor() {
   $('#addRow').onclick = () => { const d = getDraft(); d.ing.push({ p: '', code: '', u: 'г', br: null, nt: null, note: 'Добавлено вручную.' }); renderIng(); touched(); const ins = $('#ing').querySelectorAll('.cb input'); ins[ins.length - 1]?.focus(); };
   $('#addStep').onclick = () => { getDraft().steps.push(''); renderSteps(); touched(); const t = $('#steps').querySelectorAll('textarea'); t[t.length - 1]?.focus(); };
   $('#toCalc').onclick = () => { setCalcDish(current); showTab('calc'); };
+  $('#back').onclick = () => { if (history.state && history.state.card) history.back(); else { setMode('list'); history.replaceState(null, '', location.pathname); } };
+  if ($('#markDone')) $('#markDone').onclick = () => toggleDone(true);
+  if ($('#undone')) $('#undone').onclick = () => toggleDone(false);
   $('#print').onclick = printCard;
   $('#copy').onclick = copyCard;
   renderMeter(); renderIng(); renderSteps(); renderExtra(); renderSavebar();
 }
 
+async function toggleDone(val) {
+  const code = current, name = effective(code).name;
+  if (val && drafts[code]) { toast('Сначала сохраните или отмените правки этой карты', 3500); return; }
+  const ok = val
+    ? await confirmBox('Отметить карту готовой?', `«${name}» будет отмечена как проверенная и исправленная — у всех сотрудников. Её можно будет найти в фильтре «готово».`, 'Да, готово')
+    : await confirmBox('Снять отметку «готово»?', `«${name}» снова появится среди карт, которые нужно проверить.`, 'Снять отметку');
+  if (!ok) return;
+  try {
+    const r = await api('/api/done/' + encodeURIComponent(code), { method: 'PUT', body: JSON.stringify({ done: val }) });
+    if (r.done) done[code] = r.done; else delete done[code];
+    if (current === code) renderEditor(); renderList();
+    toast(val ? '✓ Карта отмечена готовой' : 'Отметка снята');
+  } catch (e) { toast('Не получилось: ' + e.message); }
+}
 function renderMeter() {
   const M = $('#meter'); if (!M) return;
   const c = effective(current), f = fitState(c);
@@ -279,7 +316,7 @@ function diffSummary(code) {
 function renderSavebar() {
   const S = $('#savebar'); if (!S) return;
   const dirty = !!drafts[current], ch = dirty ? diffSummary(current) : [];
-  S.className = 'savebar' + (dirty ? ' dirty' : '');
+  S.className = 'savebar' + (dirty ? ' dirty' : '') + (edits[current] ? ' has-edits' : '');
   S.innerHTML = `<button class="btn primary" id="save" ${dirty ? '' : 'disabled'}>Сохранить</button>
     <button class="btn" id="undo" ${dirty ? '' : 'disabled'}>Отменить правки</button>
     <span class="msg">${dirty ? (ch.length ? 'Изменено: ' + esc(ch.slice(0, 5).join('; ')) + (ch.length > 5 ? ` и ещё ${ch.length - 5}` : '') : 'Есть правки в примечаниях') + ' · <kbd>Ctrl</kbd>+<kbd>S</kbd>' : 'Правок нет — все видят эту версию.'}</span>
@@ -372,10 +409,10 @@ function showTab(t) { $('#tabCards').setAttribute('aria-selected', t === 'cards'
 // ---------- boot ----------
 async function refreshEdits(silent) {
   try {
-    const e = await api('/api/edits');
-    const changedCurrent = current && JSON.stringify(e[current] || null) !== JSON.stringify(edits[current] || null);
-    edits = e; online = true;
-    setSync('ok', `Онлайн · изменено карт: ${Object.keys(e).length}`);
+    const st = await api('/api/state'), e = st.edits;
+    const changedCurrent = current && (JSON.stringify(e[current] || null) !== JSON.stringify(edits[current] || null) || JSON.stringify(st.done[current] || null) !== JSON.stringify(done[current] || null));
+    edits = e; done = st.done || {}; online = true;
+    setSync('ok', `Онлайн · изменено: ${Object.keys(e).length} · готово: ${Object.keys(done).length}`);
     if (changedCurrent && !drafts[current]) renderEditor();
     else if (changedCurrent && drafts[current] && $('#conflict')) $('#conflict').innerHTML = `<div class="banner">Эту карту только что сохранил(а) ${esc((e[current] || {}).by || 'другой сотрудник')}. Ваши правки не потеряны — при сохранении появится выбор.</div>`;
     renderList();
@@ -392,7 +429,9 @@ async function boot() {
   $('#cat').innerHTML += [...new Set(BASE.cards.map(c => c.cat).filter(Boolean))].sort().map(c => `<option>${esc(c)}</option>`).join('');
   await refreshEdits(true);
   const h = decodeURIComponent(location.hash.slice(1));
-  openCard(BYCODE[h] ? h : BASE.cards[0].code);
+  try { $('#hideDone').checked = localStorage.getItem('mz-hide-done') === '1'; } catch (e) {}
+  if (isPhone() && !BYCODE[h]) { current = BASE.cards[0].code; renderEditor(); renderList(); setMode('list'); }
+  else { openCard(BYCODE[h] ? h : BASE.cards[0].code); if (isPhone()) setMode('card'); }
   if (h === 'calc') setTimeout(() => showTab('calc'));
   attachCombo($('#cDish'), { list: () => DISHES, key: d => d.name + ' ' + d.code + ' ' + d.cat, label: d => effective(d.code).name, sub: d => d.cat, onPick: d => setCalcDish(d.code) });
   setCalcDish(current); calc.rows = [];
@@ -403,6 +442,13 @@ async function boot() {
 $('#tabCards').onclick = () => showTab('cards');
 $('#tabCalc').onclick = () => showTab('calc');
 $('#q').oninput = renderList; $('#cat').onchange = renderList;
+$('#hideDone').onchange = e => { try { localStorage.setItem('mz-hide-done', e.target.checked ? '1' : '0'); } catch (x) {} renderList(); };
+addEventListener('popstate', () => {
+  if (!isPhone() || !BASE) return;
+  const h = decodeURIComponent(location.hash.slice(1));
+  if (BYCODE[h]) { current = h; renderEditor(); renderList(); setMode('card'); } else { setMode('list'); renderList(); }
+});
+matchMedia('(max-width:720px)').addEventListener?.('change', ev => { if (!ev.matches) setMode(''); else setMode(location.hash.length > 1 ? 'card' : 'list'); });
 $('#seg').onclick = e => { const b = e.target.closest('button'); if (!b) return; filter = b.dataset.f; [...$('#seg').children].forEach(x => x.setAttribute('aria-pressed', x === b)); renderList(); };
 $('#menuBtn').onclick = e => { e.stopPropagation(); const m = $('#menu'); m.hidden = !m.hidden; $('#menuBtn').setAttribute('aria-expanded', !m.hidden); };
 document.addEventListener('click', e => { if (!e.target.closest('.menuWrap')) $('#menu').hidden = true; });
@@ -431,7 +477,7 @@ $('#cToCard').onclick = async () => {
     else d.ing.push({ p: r.p, code: p ? p.code : '', u: p ? p.u : baseU(r.u), br, nt, note: `Добавлено. ${tag}` });
   });
   if (w && T) d.out = +(w * 1000 * n / T).toFixed(1);
-  persistDraft(calc.code); current = calc.code; showTab('cards'); renderEditor(); renderList(); toast('Нормы записаны в карту — проверьте и нажмите «Сохранить»', 4000);
+  persistDraft(calc.code); current = calc.code; showTab('cards'); renderEditor(); renderList(); if (isPhone()) { history.pushState({ card: current }, '', '#' + current); setMode('card'); } toast('Нормы записаны в карту — проверьте и нажмите «Сохранить»', 4000);
 };
 $('#cCopy').onclick = () => {
   const T = cTotal(), lines = [`Закладка: ${$('#cN').value} × ${$('#cK').value} = ${fmt(T, 0)} порций${calc.code ? ' · ' + effective(calc.code).name : ''}`, 'Продукт\tВсего\tЕд.\t1 порция брутто\t1 порция нетто'];

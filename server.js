@@ -30,18 +30,25 @@ const store = (() => {
   if (process.env.DATABASE_URL) {
     const { Pool } = require('pg');
     const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.PGSSL === 'off' ? false : { rejectUnauthorized: false } });
-    let ready = pool.query('CREATE TABLE IF NOT EXISTS card_edits (code TEXT PRIMARY KEY, doc JSONB NOT NULL, at BIGINT NOT NULL)');
+    let ready = pool.query('CREATE TABLE IF NOT EXISTS card_edits (code TEXT PRIMARY KEY, doc JSONB NOT NULL, at BIGINT NOT NULL)')
+      .then(() => pool.query('CREATE TABLE IF NOT EXISTS card_done (code TEXT PRIMARY KEY, info JSONB NOT NULL)'));
     return {
       kind: 'postgres',
       async all() { await ready; const r = await pool.query('SELECT code, doc FROM card_edits'); const o = {}; r.rows.forEach(x => o[x.code] = x.doc); return o; },
       async put(code, doc) { await ready; await pool.query('INSERT INTO card_edits(code, doc, at) VALUES($1,$2,$3) ON CONFLICT (code) DO UPDATE SET doc = EXCLUDED.doc, at = EXCLUDED.at', [code, doc, doc.at]); },
       async del(code) { await ready; await pool.query('DELETE FROM card_edits WHERE code = $1', [code]); },
+      async doneAll() { await ready; const r = await pool.query('SELECT code, info FROM card_done'); const o = {}; r.rows.forEach(x => o[x.code] = x.info); return o; },
+      async setDone(code, info) { await ready; if (info) await pool.query('INSERT INTO card_done(code, info) VALUES($1,$2) ON CONFLICT (code) DO UPDATE SET info = EXCLUDED.info', [code, info]); else await pool.query('DELETE FROM card_done WHERE code = $1', [code]); },
     };
   }
   fs.mkdirSync(DATA_DIR, { recursive: true });
   const file = path.join(DATA_DIR, 'edits.json');
   let mem = {};
   try { mem = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) { mem = {}; }
+  const doneFile = path.join(DATA_DIR, 'done.json');
+  let done = {};
+  try { done = JSON.parse(fs.readFileSync(doneFile, 'utf8')); } catch (e) { done = {}; }
+  const flushDone = () => new Promise(res => fs.writeFile(doneFile + '.tmp', JSON.stringify(done), err => { if (err) return res(); fs.rename(doneFile + '.tmp', doneFile, () => res()); }));
   let chain = Promise.resolve();
   const flush = () => { chain = chain.then(() => new Promise(res => {
     const tmp = file + '.tmp';
@@ -52,6 +59,8 @@ const store = (() => {
     async all() { return mem; },
     async put(code, doc) { mem[code] = doc; await flush(); },
     async del(code) { delete mem[code]; await flush(); },
+    async doneAll() { return done; },
+    async setDone(code, info) { if (info) done[code] = info; else delete done[code]; await flushDone(); },
   };
 })();
 
@@ -153,6 +162,15 @@ const server = http.createServer(async (req, res) => {
       return res.end(buf);
     }
     if (p === '/api/edits' && req.method === 'GET') return send(req, res, 200, await store.all());
+    if (p === '/api/state' && req.method === 'GET') { const [edits, done] = await Promise.all([store.all(), store.doneAll()]); return send(req, res, 200, { edits, done }); }
+    const dm = p.match(/^\/api\/done\/([A-Za-z0-9_.\-]+)$/);
+    if (dm && req.method === 'PUT') {
+      if (!BASE_CODES.has(dm[1])) return send(req, res, 404, { error: 'Нет такой карты' });
+      const b = await readBody(req, 1e4);
+      const info = b.done ? { by: me.name, at: Date.now() } : null;
+      await store.setDone(dm[1], info);
+      return send(req, res, 200, { code: dm[1], done: info });
+    }
 
     const m = p.match(/^\/api\/cards\/([A-Za-z0-9_.\-]+)$/);
     if (m) {
@@ -174,11 +192,13 @@ const server = http.createServer(async (req, res) => {
 
     if (p === '/api/export.csv') {
       const all = await store.all();
-      const rows = [['Категория', 'Блюдо', 'Код карты', 'Выход', 'Ед. выхода', 'Продукт', 'Код SAP', 'Ед.', 'Брутто', 'Нетто', 'Примечание', 'Изменил', 'Когда']];
+      const rows = [['Категория', 'Блюдо', 'Код карты', 'Выход', 'Ед. выхода', 'Продукт', 'Код SAP', 'Ед.', 'Брутто', 'Нетто', 'Примечание', 'Изменил', 'Когда', 'Готово']];
+      const doneMap = await store.doneAll();
       for (const c of BASE.cards) {
+        const dn = doneMap[c.code] ? 'да (' + doneMap[c.code].by + ')' : '';
         const e = all[c.code] ? { ...c, ...all[c.code] } : c;
         const who = all[c.code] ? all[c.code].by : '', when = all[c.code] ? new Date(all[c.code].at).toLocaleString('ru-RU', { timeZone: 'Asia/Almaty' }) : '';
-        for (const r of e.ing) rows.push([e.cat, c.name, c.code, nf(e.out), e.ou, (r.p || '').split(' · ')[0], r.code, r.u, nf(r.br), nf(r.nt), r.note, who, when]);
+        for (const r of e.ing) rows.push([e.cat, c.name, c.code, nf(e.out), e.ou, (r.p || '').split(' · ')[0], r.code, r.u, nf(r.br), nf(r.nt), r.note, who, when, dn]);
       }
       const csv = '﻿' + rows.map(r => r.map(csvCell).join(';')).join('\r\n');
       return send(req, res, 200, csv, 'text/csv; charset=utf-8', { 'Content-Disposition': 'attachment; filename="mezzome_techcards.csv"' });
